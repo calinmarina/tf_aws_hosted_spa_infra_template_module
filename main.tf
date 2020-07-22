@@ -24,15 +24,20 @@ resource "aws_s3_bucket" "domainBucket" {
 
   policy = <<EOF
 {
-  "Version":"2012-10-17",
-  "Statement": [{
-    "Sid": "Allow Public Access to All Objects",
-    "Effect": "Allow",
-    "Principal": "*",
-    "Action": "s3:GetObject",
-    "Resource": "arn:aws:s3:::${var.domain}/*"
-  }
- ]
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PublicReadGetObject",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::${var.domain}/*"
+            ]
+        }
+    ]
 }
 EOF
 
@@ -88,5 +93,17 @@ resource "aws_cloudfront_distribution" "cloudFrontDistribution" {
   viewer_certificate {
     acm_certificate_arn      = var.certificate_arn
     ssl_support_method       = "sni-only"
+  }
+}
+
+resource "aws_route53_record" "domain_record" {
+  zone_id = data.aws_route53_zone.route_zone.zone_id
+  name    = ""
+  type    = "A"
+
+  alias {
+    name = aws_cloudfront_distribution.cloudFrontDistribution.domain_name
+    zone_id = aws_cloudfront_distribution.cloudFrontDistribution.hosted_zone_id
+    evaluate_target_health = false
   }
 }
