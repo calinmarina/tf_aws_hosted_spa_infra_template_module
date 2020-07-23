@@ -1,4 +1,4 @@
-TF module to build infrastructure setup of a React Single Page App 
+TF module to build infrastructure setup of a React SPA
 ===========
 
 Opinionated template Terraform module to spin up infrastructure for a Single Page Application hosted on AWS S3 buckets
