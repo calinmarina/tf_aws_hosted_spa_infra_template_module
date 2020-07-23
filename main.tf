@@ -11,7 +11,7 @@ locals {
 #Create domain bucket
 resource "aws_s3_bucket" "domainBucket" {
   bucket = var.domain.name
-  acl    = "private"
+  acl    = "bucket-owner-full-control"
   policy = <<EOF
 {
     "Version": "2008-10-17",
@@ -36,11 +36,18 @@ EOF
   }
 
   tags = local.common_tags
-
-  provisioner "local-exec" {
-      command = "bash -e aws s3 sync build/ s3://${var.domain.name}"
-    }
 }
+
+# resource "null_resource" "upload_files" {
+#   depends_on = [aws_s3_bucket.domainBucket]
+#   provisioner "local-exec" {
+#       command = "bash -e aws s3 sync build/ s3://${var.domain.name}"
+#       environment = {
+#         "AWS_SHARED_CREDENTIALS_FILE"= "~/.aws/credentials"
+#         "AWS_PROFILE"= "marinaconsult"
+#       }
+#     }
+# }
 
 # Create subdomain bucket
 # www.<<mydomain>>
