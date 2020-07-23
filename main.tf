@@ -32,6 +32,14 @@ resource "aws_s3_bucket" "subdomainBucket" {
   tags = local.common_tags
 }
 
+#Create static content bucket
+resource "aws_s3_bucket" "staticContentBucket" {
+  bucket = var.domain
+  acl    = "private"
+
+  tags = local.common_tags
+}
+
 resource "aws_cloudfront_origin_access_identity" "originAccessIdentity" {
   comment = "Cloud Front Origin Access Identity"
 }
@@ -86,6 +94,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
 }
 
 resource "aws_route53_record" "domain_record" {
+  depends_on = [aws_cloudfront_distribution.s3Distribution]
   zone_id = data.aws_route53_zone.route_zone.zone_id
   name    = ""
   type    = "A"
