@@ -2,6 +2,10 @@ output "s3_bucket" {
   value = aws_s3_bucket.domainBucket.bucket
 }
 
+output "s3_static_bucket" {
+  value = aws_s3_bucket.staticContentBucket.bucket
+}
+
 output "spa_cloudfront" {
   value = {
     domain = aws_cloudfront_distribution.s3Distribution.domain_name

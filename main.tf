@@ -12,6 +12,12 @@ locals {
 resource "aws_s3_bucket" "domainBucket" {
   bucket = var.domain.name
   acl    = "bucket-owner-full-control"
+
+  website {
+    index_document = "index.html"
+    error_document = "index.html"
+  }
+
   policy = <<EOF
 {
     "Version": "2008-10-17",
@@ -29,11 +35,6 @@ resource "aws_s3_bucket" "domainBucket" {
     ]
 }
 EOF
-
-  website {
-    index_document = "index.html"
-    error_document = "index.html"
-  }
 
   tags = local.common_tags
 }
@@ -53,10 +54,28 @@ EOF
 # www.<<mydomain>>
 resource "aws_s3_bucket" "subdomainBucket" {
   bucket = local.subdomain
-  acl    = "private"
+  acl    = "bucket-owner-full-control"
   website {
     redirect_all_requests_to = aws_s3_bucket.domainBucket.website_endpoint
   }
+
+  policy = <<EOF
+{
+    "Version": "2008-10-17",
+    "Id": "PolicyForCloudFrontPrivateContent",
+    "Statement": [
+        {
+            "Sid": "1",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${aws_cloudfront_origin_access_identity.originAccessIdentity.id}"
+            },
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::${var.domain.name}/*"
+        }
+    ]
+}
+EOF
 
   tags = local.common_tags
 }
@@ -64,7 +83,25 @@ resource "aws_s3_bucket" "subdomainBucket" {
 #Create static content bucket
 resource "aws_s3_bucket" "staticContentBucket" {
   bucket = local.staticContentBucketName
-  acl    = "private"
+  acl    = "bucket-owner-full-control"
+
+  policy = <<EOF
+{
+    "Version": "2008-10-17",
+    "Id": "PolicyForCloudFrontPrivateContent",
+    "Statement": [
+        {
+            "Sid": "1",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${aws_cloudfront_origin_access_identity.originAccessIdentity.id}"
+            },
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::${var.domain.name}/*"
+        }
+    ]
+}
+EOF
 
   tags = local.common_tags
 }
@@ -77,6 +114,15 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
   origin {
     domain_name = aws_s3_bucket.domainBucket.bucket_regional_domain_name
     origin_id   = local.s3_origin_id
+
+    s3_origin_config {
+      origin_access_identity = aws_cloudfront_origin_access_identity.originAccessIdentity.cloudfront_access_identity_path
+    }
+  }
+
+  origin {
+    domain_name = aws_s3_bucket.staticContentBucket.bucket_regional_domain_name
+    origin_id   = local.staticContentBucketName
 
     s3_origin_config {
       origin_access_identity = aws_cloudfront_origin_access_identity.originAccessIdentity.cloudfront_access_identity_path
@@ -109,6 +155,28 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
     max_ttl                = 86400
   }
 
+  # Cache behavior with precedence 0
+  ordered_cache_behavior {
+    path_pattern     = "/static/*"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.staticContentBucketName
+
+    forwarded_values {
+      query_string = false
+      headers      = ["Origin"]
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl                = 0
+    default_ttl            = 86400
+    max_ttl                = 31536000
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+  }
 
   restrictions {
     geo_restriction {
