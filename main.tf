@@ -1,5 +1,5 @@
 locals {
-  subdomain = join(".", ["www", var.domain.name])
+  subdomain               = join(".", ["www", var.domain.name])
   staticContentBucketName = join("-", [var.domain.name, "static"])
   common_tags = {
     project = var.domain.name
@@ -53,7 +53,7 @@ EOF
 # www.<<mydomain>>
 resource "aws_s3_bucket" "subdomainBucket" {
   bucket = local.subdomain
-  acl = "private"
+  acl    = "private"
   website {
     redirect_all_requests_to = aws_s3_bucket.domainBucket.website_endpoint
   }
@@ -102,7 +102,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
         forward = "none"
       }
     }
-    compress = true
+    compress               = true
     viewer_protocol_policy = "allow-all"
     min_ttl                = 0
     default_ttl            = 3600
@@ -117,20 +117,20 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
   }
 
   viewer_certificate {
-    acm_certificate_arn      = var.certificate_arn
-    ssl_support_method       = "sni-only"
+    acm_certificate_arn = var.certificate_arn
+    ssl_support_method  = "sni-only"
   }
 }
 
 resource "aws_route53_record" "domain_record" {
   depends_on = [aws_cloudfront_distribution.s3Distribution]
-  zone_id = var.domain.zone_id
-  name    = ""
-  type    = "A"
+  zone_id    = var.domain.zone_id
+  name       = ""
+  type       = "A"
 
   alias {
-    name = aws_cloudfront_distribution.s3Distribution.domain_name
-    zone_id = aws_cloudfront_distribution.s3Distribution.hosted_zone_id
+    name                   = aws_cloudfront_distribution.s3Distribution.domain_name
+    zone_id                = aws_cloudfront_distribution.s3Distribution.hosted_zone_id
     evaluate_target_health = false
   }
 }

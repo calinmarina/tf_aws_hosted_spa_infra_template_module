@@ -1,11 +1,11 @@
 output "s3_bucket" {
-    value = aws_s3_bucket.domainBucket.bucket
+  value = aws_s3_bucket.domainBucket.bucket
 }
 
 output "spa_cloudfront" {
-    value = object({
-        domain = aws_cloudfront_distribution.s3Distribution.domain_name
-        arn = aws_cloudfront_distribution.s3Distribution.arn
-        status = aws_cloudfront_distribution.s3Distribution.status
-    }
+  value = {
+    domain = aws_cloudfront_distribution.s3Distribution.domain_name
+    arn    = aws_cloudfront_distribution.s3Distribution.arn
+    status = aws_cloudfront_distribution.s3Distribution.status
+  }
 }
