@@ -1,5 +1,6 @@
 locals {
   subdomain = join(".", ["www", var.domain])
+  staticContentBucketName = join("-", [var.domain, "static"])
   common_tags = {
     project = var.domain
     env     = var.env
@@ -18,6 +19,10 @@ data "aws_route53_zone" "route_zone" {
 resource "aws_s3_bucket" "domainBucket" {
   bucket = var.domain
   acl    = "private"
+  website {
+    index_document = "index.html"
+    error_document = "index.html"
+  }
 
   tags = local.common_tags
 }
@@ -26,15 +31,17 @@ resource "aws_s3_bucket" "domainBucket" {
 # www.<<mydomain>>
 resource "aws_s3_bucket" "subdomainBucket" {
   bucket = local.subdomain
+  acl = "private"
   website {
     redirect_all_requests_to = aws_s3_bucket.domainBucket.website_endpoint
   }
+
   tags = local.common_tags
 }
 
 #Create static content bucket
 resource "aws_s3_bucket" "staticContentBucket" {
-  bucket = var.domain
+  bucket = local.staticContentBucketName
   acl    = "private"
 
   tags = local.common_tags
