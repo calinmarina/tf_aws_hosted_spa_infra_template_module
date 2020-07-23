@@ -8,8 +8,6 @@ locals {
   s3_origin_id = "myS3Origin"
 }
 
-# Reuse existing zone to avoid allocation of different name servers after rebuild
-# while domain name is still in process of migration from GoDaddy to AWS
 data "aws_route53_zone" "route_zone" {
   name = var.domain
   tags = local.common_tags
@@ -19,12 +17,34 @@ data "aws_route53_zone" "route_zone" {
 resource "aws_s3_bucket" "domainBucket" {
   bucket = var.domain
   acl    = "private"
+  policy = <<EOF
+{
+    "Version": "2008-10-17",
+    "Id": "PolicyForCloudFrontPrivateContent",
+    "Statement": [
+        {
+            "Sid": "1",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${aws_cloudfront_origin_access_identity.originAccessIdentity.id}"
+            },
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::${var.domain}/*"
+        }
+    ]
+}
+EOF
+
   website {
     index_document = "index.html"
     error_document = "index.html"
   }
 
   tags = local.common_tags
+
+  provisioner "local-exec" {
+      command = "bash -e aws s3 sync build/ s3://${var.domain}"
+    }
 }
 
 # Create subdomain bucket
