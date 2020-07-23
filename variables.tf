@@ -1,7 +1,7 @@
 variable "domain" {
   description = "Domain where SPA will be deployed"
   type = object({
-    name = string
+    name    = string
     zone_id = string
   })
 }
