@@ -1,21 +1,16 @@
 locals {
-  subdomain = join(".", ["www", var.domain])
-  staticContentBucketName = join("-", [var.domain, "static"])
+  subdomain = join(".", ["www", var.domain.name])
+  staticContentBucketName = join("-", [var.domain.name, "static"])
   common_tags = {
-    project = var.domain
+    project = var.domain.name
     env     = var.env
   }
   s3_origin_id = "myS3Origin"
 }
 
-data "aws_route53_zone" "route_zone" {
-  name = var.domain
-  tags = local.common_tags
-}
-
 #Create domain bucket
 resource "aws_s3_bucket" "domainBucket" {
-  bucket = var.domain
+  bucket = var.domain.name
   acl    = "private"
   policy = <<EOF
 {
@@ -29,7 +24,7 @@ resource "aws_s3_bucket" "domainBucket" {
                 "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${aws_cloudfront_origin_access_identity.originAccessIdentity.id}"
             },
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::${var.domain}/*"
+            "Resource": "arn:aws:s3:::${var.domain.name}/*"
         }
     ]
 }
@@ -43,7 +38,7 @@ EOF
   tags = local.common_tags
 
   provisioner "local-exec" {
-      command = "bash -e aws s3 sync build/ s3://${var.domain}"
+      command = "bash -e aws s3 sync build/ s3://${var.domain.name}"
     }
 }
 
@@ -83,7 +78,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
 
   tags = local.common_tags
 
-  aliases             = [var.domain, local.subdomain]
+  aliases             = [var.domain.name, local.subdomain]
   default_root_object = "index.html"
   is_ipv6_enabled     = true
   enabled             = true
@@ -122,7 +117,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
 
 resource "aws_route53_record" "domain_record" {
   depends_on = [aws_cloudfront_distribution.s3Distribution]
-  zone_id = data.aws_route53_zone.route_zone.zone_id
+  zone_id = var.domain.zone_id
   name    = ""
   type    = "A"
 

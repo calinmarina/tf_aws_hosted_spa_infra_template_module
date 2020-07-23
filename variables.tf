@@ -1,5 +1,9 @@
 variable "domain" {
   description = "Domain where SPA will be deployed"
+  type = object({
+    name = string
+    zone_id = string
+  })
 }
 
 variable "certificate_arn" {
