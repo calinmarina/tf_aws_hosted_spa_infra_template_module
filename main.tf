@@ -1,5 +1,4 @@
 locals {
-  subdomain               = join(".", ["www", var.domain.name])
   staticContentBucketName = join("-", [var.domain.name, "static"])
   common_tags = {
     project = var.domain.name
@@ -50,36 +49,6 @@ EOF
 #     }
 # }
 
-# Create subdomain bucket
-# www.<<mydomain>>
-resource "aws_s3_bucket" "subdomainBucket" {
-  bucket = local.subdomain
-  acl    = "bucket-owner-full-control"
-  website {
-    redirect_all_requests_to = aws_s3_bucket.domainBucket.website_endpoint
-  }
-
-  policy = <<EOF
-{
-    "Version": "2008-10-17",
-    "Id": "PolicyForCloudFrontPrivateContent",
-    "Statement": [
-        {
-            "Sid": "1",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${aws_cloudfront_origin_access_identity.originAccessIdentity.id}"
-            },
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::${var.domain.name}/*"
-        }
-    ]
-}
-EOF
-
-  tags = local.common_tags
-}
-
 #Create static content bucket
 resource "aws_s3_bucket" "staticContentBucket" {
   bucket = local.staticContentBucketName
@@ -97,11 +66,15 @@ resource "aws_s3_bucket" "staticContentBucket" {
                 "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${aws_cloudfront_origin_access_identity.originAccessIdentity.id}"
             },
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::${var.domain.name}/*"
+            "Resource": "arn:aws:s3:::${local.staticContentBucketName}/*"
         }
     ]
 }
 EOF
+
+  website {
+    index_document = "index.html"
+  }
 
   tags = local.common_tags
 }
@@ -131,7 +104,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
 
   tags = local.common_tags
 
-  aliases             = [var.domain.name, local.subdomain]
+  aliases             = [var.domain.name]
   default_root_object = "index.html"
   is_ipv6_enabled     = true
   enabled             = true
@@ -155,11 +128,10 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
     max_ttl                = 86400
   }
 
-  # Cache behavior with precedence 0
   ordered_cache_behavior {
-    path_pattern     = "/static/*"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    path_pattern     = "static/*"
+    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods   = ["GET", "HEAD"]
     target_origin_id = local.staticContentBucketName
 
     forwarded_values {
@@ -175,7 +147,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
     default_ttl            = 86400
     max_ttl                = 31536000
     compress               = true
-    viewer_protocol_policy = "redirect-to-https"
+    viewer_protocol_policy = "allow-all"
   }
 
   restrictions {
@@ -188,7 +160,21 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
     acm_certificate_arn = var.certificate_arn
     ssl_support_method  = "sni-only"
   }
+
+  # web_acl_id = aws_wafv2_ip_set.IPrestrictRule.arn
 }
+
+## Disable together with web_acl_id above to activate CloudFront WAFs
+## IP filtering access 
+# resource "aws_wafv2_ip_set" "IPrestrictRule" {
+#   name               = "example"
+#   description        = "Example IP set"
+#   scope              = "CLOUDFRONT"
+#   ip_address_version = "IPV4"
+#   addresses          = [ <<IP list, maybe passed via input parameter>> ]
+
+#   tags = local.common_tags
+# }
 
 resource "aws_route53_record" "domain_record" {
   depends_on = [aws_cloudfront_distribution.s3Distribution]
