@@ -11,29 +11,12 @@ locals {
 resource "aws_s3_bucket" "domainBucket" {
   bucket = var.domain.name
   acl    = "bucket-owner-full-control"
+  policy = templatefile("${path.module}/bucket-policy.tmpl", { oai_id = aws_cloudfront_origin_access_identity.originAccessIdentity.id, bucket_name = var.domain.name })
 
   website {
     index_document = "index.html"
     error_document = "index.html"
   }
-
-  policy = <<EOF
-{
-    "Version": "2008-10-17",
-    "Id": "PolicyForCloudFrontPrivateContent",
-    "Statement": [
-        {
-            "Sid": "1",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${aws_cloudfront_origin_access_identity.originAccessIdentity.id}"
-            },
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::${var.domain.name}/*"
-        }
-    ]
-}
-EOF
 
   tags = local.common_tags
 }
@@ -53,28 +36,11 @@ EOF
 resource "aws_s3_bucket" "staticContentBucket" {
   bucket = local.staticContentBucketName
   acl    = "bucket-owner-full-control"
+  policy = templatefile("${path.module}/bucket-policy.tmpl", { oai_id = aws_cloudfront_origin_access_identity.originAccessIdentity.id, bucket_name = local.staticContentBucketName })
 
-  policy = <<EOF
-{
-    "Version": "2008-10-17",
-    "Id": "PolicyForCloudFrontPrivateContent",
-    "Statement": [
-        {
-            "Sid": "1",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${aws_cloudfront_origin_access_identity.originAccessIdentity.id}"
-            },
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::${local.staticContentBucketName}/*"
-        }
-    ]
-}
-EOF
-
-  website {
-    index_document = "index.html"
-  }
+  # website {
+  #   index_document = "index.html"
+  # }
 
   tags = local.common_tags
 }
@@ -104,7 +70,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
 
   tags = local.common_tags
 
-  aliases             = [var.domain.name]
+  aliases             = [var.domain.name, join(".", ["www", var.domain.name])]
   default_root_object = "index.html"
   is_ipv6_enabled     = true
   enabled             = true
@@ -122,7 +88,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
       }
     }
     compress               = true
-    viewer_protocol_policy = "allow-all"
+    viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
     default_ttl            = 3600
     max_ttl                = 86400
@@ -136,7 +102,6 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
 
     forwarded_values {
       query_string = false
-      headers      = ["Origin"]
 
       cookies {
         forward = "none"
@@ -147,7 +112,7 @@ resource "aws_cloudfront_distribution" "s3Distribution" {
     default_ttl            = 86400
     max_ttl                = 31536000
     compress               = true
-    viewer_protocol_policy = "allow-all"
+    viewer_protocol_policy = "redirect-to-https"
   }
 
   restrictions {
